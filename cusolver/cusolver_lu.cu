@@ -64,12 +64,13 @@ double get_time() {
 }
 
 /* print matrices */
-// #define PRINT /* comment this to diable print */
+#define PRINT /* comment this to diable print */
 
 int main(int argc, char *argv[]) {
     srand(42);
     if (argc < 2) {
-        printf("Usage %s [matrix size]\n", argv[0]);
+        printf("Usage %s [matrix dimension]\n", argv[0]);
+        printf(" e.g., %s 4\n", argv[0]);
         exit(0);
     }
     int matSize = atoi(argv[1]);

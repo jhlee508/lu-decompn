@@ -1,6 +1,6 @@
 # CuSolver LU Factorization
 
-This code is a usage of cuSOLVER `getrf` API for `dense LU factorization` from [NVIDIA repository](https://github.com/NVIDIA/CUDALibrarySamples)
+This code is a usage of cuSOLVER API for `dense LU decomposition` from [NVIDIA repository](https://github.com/NVIDIA/CUDALibrarySamples)
 
 _PA = LU_
 
@@ -11,16 +11,18 @@ _PA = LU_
 - [CMake](https://cmake.org/download) version >= 3.18
 
 ### Build command on Linux
-```
-$ mkdir build
-$ cd build
-$ cmake ..
-$ make
+
+```bash
+mkdir build
+cd build
+cmake ..
+make
 ```
 
 ## Usage (run)
-```
-$  ./cusolver_lu [matrix size]
+
+```bash
+./cusolver_lu [matrix dimension] # e.g., ./cusolver_lu 4
 ```
 
 ## Reference
