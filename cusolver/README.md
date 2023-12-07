@@ -20,7 +20,7 @@ $ make
 
 ## Usage (run)
 ```
-$  ./cusolver_lu
+$  ./cusolver_lu [matrix size]
 ```
 
 ## Reference
