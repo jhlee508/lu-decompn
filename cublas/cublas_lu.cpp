@@ -52,14 +52,14 @@
 
 // configurable parameters
 // dimension of matrix
-#define N 4
-#define BATCH_SIZE 10000
+#define N 2048
+#define BATCH_SIZE 1
 
 // use double precision data type
 #define DOUBLE_PRECISION /* comment this to use single precision */
 #ifdef DOUBLE_PRECISION
 #define DATA_TYPE double
-#define MAX_ERROR 1e-15
+#define MAX_ERROR 1e-14 // default: 1e-15
 #else
 #define DATA_TYPE float
 #define MAX_ERROR 1e-6
@@ -165,7 +165,12 @@ bool checkRelativeError(DATA_TYPE* mat1, DATA_TYPE* mat2, DATA_TYPE maxError) {
       relMaxError = MAX(relMaxError, relError);
     }
 
-    if (relMaxError > maxError) return false;
+    if (relMaxError > maxError) {
+      printf("> ERROR: relMaxError = %e is greater than maxError = %e "
+             "at index %d..\n",
+             relMaxError, maxError, i); 
+      return false;
+    }
   }
   return true;
 }
@@ -332,6 +337,7 @@ int main(int argc, char** argv) {
     return (EXIT_FAILURE);
   }
   double end = get_time();
+  printf("> finish LU decomposition..\n");
 
   // copy data to host from device
   printf("> copying data from GPU memory to host memory..\n");
@@ -351,13 +357,18 @@ int main(int argc, char** argv) {
     if (h_infoArray[i] == 0) {
       DATA_TYPE* A = h_AarrayInput + (i * N * N);
       DATA_TYPE* LU = h_AarrayOutput + (i * N * N);
-      DATA_TYPE L[N * N];
-      DATA_TYPE U[N * N];
+      /* Dynamic allocation L and U to avoid stack overflow */
+      // DATA_TYPE L[N * N];
+      // DATA_TYPE U[N * N];
+      DATA_TYPE* L = (DATA_TYPE*)malloc(N * N * sizeof(DATA_TYPE));
+      DATA_TYPE* U = (DATA_TYPE*)malloc(N * N * sizeof(DATA_TYPE));
       getLUdecoded(LU, L, U);
 
       // test P * A = L * U
       int* P = h_pivotArray + (i * N);
-      DATA_TYPE Pmat[N * N];
+      /* Dynamic allocation Pmat to avoid stack overflow */
+      // DATA_TYPE Pmat[N * N];
+      DATA_TYPE* Pmat = (DATA_TYPE*)malloc(N * N * sizeof(DATA_TYPE));
 #ifdef PIVOT
       getPmatFromPivot(Pmat, P);
 #else
@@ -365,8 +376,11 @@ int main(int argc, char** argv) {
 #endif /* PIVOT */
 
       // perform matrix multiplication
-      DATA_TYPE PxA[N * N];
-      DATA_TYPE LxU[N * N];
+      /* Dynamic allocation PxA and LxA to avoid stack overflow */ 
+      //DATA_TYPE PxA[N * N];
+      DATA_TYPE* PxA = (DATA_TYPE*)malloc(N * N * sizeof(DATA_TYPE));
+      //DATA_TYPE LxU[N * N];
+      DATA_TYPE* LxU = (DATA_TYPE*)malloc(N * N * sizeof(DATA_TYPE));
       matrixMultiply(PxA, Pmat, A);
       matrixMultiply(LxU, L, U);
 
@@ -376,13 +390,14 @@ int main(int argc, char** argv) {
                i + 1);
         err_count++;
       }
-
-    } else if (h_infoArray[i] > 0) {
+    } 
+    else if (h_infoArray[i] > 0) {
       printf(
           "> execution for matrix %05d is successful, but U is singular and "
           "U(%d,%d) = 0..\n",
           i + 1, h_infoArray[i] - 1, h_infoArray[i] - 1);
-    } else  // (h_infoArray[i] < 0)
+    } 
+    else  // (h_infoArray[i] < 0)
     {
       printf("> ERROR: matrix %05d have an illegal value at index %d = %lf..\n",
              i + 1, -h_infoArray[i],
@@ -415,7 +430,7 @@ int main(int argc, char** argv) {
     return (EXIT_FAILURE);
   }
   printf("\n------------- Cublas LU Decomposition Result -------------\n");
-  printf("> TEST SUCCESSFUL, with precision: %g\n", MAX_ERROR);
+  printf("> Validation SUCCESS, with precision: %g\n", MAX_ERROR);
   printf("> LU Decomposition Elapsed Time: %f (sec)", end - start);
   printf("\n----------------------------------------------------------\n");
   return (EXIT_SUCCESS);

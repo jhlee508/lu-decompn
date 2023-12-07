@@ -1,4 +1,4 @@
 /bin
 
-simpleCUBLAS_LU
+cublas_lu
 *.o

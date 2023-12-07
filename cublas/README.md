@@ -1,6 +1,6 @@
 # Cublas_LU
 
-Simple CuBLAS LU decomposition code from [NVIDIA repository](https://github.com/NVIDIA/cuda-samples)
+CuBLAS LU decomposition code from [NVIDIA repository](https://github.com/NVIDIA/cuda-samples)
 
 ## Build and Run (Linux)
 

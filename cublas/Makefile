@@ -272,13 +272,13 @@ SAMPLE_ENABLED := 1
 
 # This sample is not supported on Mac OSX
 ifeq ($(TARGET_OS),darwin)
-  $(info >>> WARNING - simpleCUBLAS_LU is not supported on Mac OSX - waiving sample <<<)
+  $(info >>> WARNING - cublas_lu is not supported on Mac OSX - waiving sample <<<)
   SAMPLE_ENABLED := 0
 endif
 
 # This sample is not supported on ARMv7
 ifeq ($(TARGET_ARCH),armv7l)
-  $(info >>> WARNING - simpleCUBLAS_LU is not supported on ARMv7 - waiving sample <<<)
+  $(info >>> WARNING - cublas_lu is not supported on ARMv7 - waiving sample <<<)
   SAMPLE_ENABLED := 0
 endif
 
@@ -329,7 +329,7 @@ endif
 # Target rules
 all: build
 
-build: simpleCUBLAS_LU
+build: cublas_lu
 
 check.deps:
 ifeq ($(SAMPLE_ENABLED),0)
@@ -338,21 +338,19 @@ else
 	@echo "Sample is ready - all dependencies have been met"
 endif
 
-simpleCUBLAS_LU.o:simpleCUBLAS_LU.cpp
+cublas_lu.o:cublas_lu.cpp
 	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
 
-simpleCUBLAS_LU: simpleCUBLAS_LU.o
+cublas_lu: cublas_lu.o
 	$(EXEC) $(NVCC) $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $+ $(LIBRARIES)
-	$(EXEC) mkdir -p ./bin/$(TARGET_ARCH)/$(TARGET_OS)/$(BUILD_TYPE)
-	$(EXEC) cp $@ ./bin/$(TARGET_ARCH)/$(TARGET_OS)/$(BUILD_TYPE)
 
 run: build
-	$(EXEC) ./simpleCUBLAS_LU
+	$(EXEC) ./cublas_lu
 
 testrun: build
 
 clean:
-	rm -f simpleCUBLAS_LU simpleCUBLAS_LU.o
-	rm -rf ./bin/$(TARGET_ARCH)/$(TARGET_OS)/$(BUILD_TYPE)/simpleCUBLAS_LU
+	rm -f cublas_lu cublas_lu.o
+	rm -rf ./bin/$(TARGET_ARCH)/$(TARGET_OS)/$(BUILD_TYPE)/cublas_lu
 
 clobber: clean
