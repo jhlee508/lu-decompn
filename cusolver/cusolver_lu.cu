@@ -55,6 +55,16 @@
 #include <cusolverDn.h>
 
 #include "cusolver_utils.h"
+#include <sys/time.h>
+
+double get_time() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return (double)tv.tv_sec + tv.tv_usec * (double)1e-6;
+}
+
+/* print matrices */
+// #define PRINT /* comment this to diable print */
 
 int main(int argc, char *argv[]) {
     srand(42);
@@ -114,14 +124,16 @@ int main(int argc, char *argv[]) {
     const int pivot_on = 1;
 
     if (pivot_on) {
-        printf("pivot is on : compute P*A = L*U \n");
+        printf("> pivot is ENABLED..\n> compute P*A = L*U\n");
     } else {
-        printf("pivot is off: compute A = L*U (not numerically stable)\n");
+        printf("> pivot is DISABLED..\n> compute A = L*U (not numerically stable)\n");
     }
 
+#ifdef PRINT
     printf("A = (matlab base-1)\n");
     print_matrix(matSize, matSize, A.data(), lda);
     printf("====================\n");
+#endif /* PRINT */
 
     /* step 1: create cusolver handle, bind a stream */
     CUSOLVER_CHECK(cusolverDnCreate(&cusolverH));
@@ -143,11 +155,13 @@ int main(int argc, char *argv[]) {
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_work), sizeof(double) * lwork));
 
     /* step 4: LU factorization */
+    double start = get_time();
     if (pivot_on) {
         CUSOLVER_CHECK(cusolverDnDgetrf(cusolverH, matSize, matSize, d_A, lda, d_work, d_Ipiv, d_info));
     } else {
         CUSOLVER_CHECK(cusolverDnDgetrf(cusolverH, matSize, matSize, d_A, lda, d_work, NULL, d_info));
     }
+    double end = get_time();
 
     if (pivot_on) {
         CUDA_CHECK(cudaMemcpyAsync(Ipiv.data(), d_Ipiv, sizeof(int) * Ipiv.size(),
@@ -163,15 +177,20 @@ int main(int argc, char *argv[]) {
         printf("%d-th parameter is wrong \n", -info);
         exit(1);
     }
+#ifdef PRINT
     if (pivot_on) {
         printf("pivoting sequence, matlab base-1\n");
         for (int j = 0; j < matSize; j++) {
             printf("Ipiv(%d) = %d\n", j + 1, Ipiv[j]);
         }
     }
+#endif /* PRINT */
+
+#ifdef PRINT
     printf("L and U = (matlab base-1)\n");
     print_matrix(matSize, matSize, LU.data(), lda);
     printf("====================\n");
+#endif /* PRINT */
 
     /* free resources */
     CUDA_CHECK(cudaFree(d_A));
@@ -185,5 +204,8 @@ int main(int argc, char *argv[]) {
 
     CUDA_CHECK(cudaDeviceReset());
 
+    printf("\n------------ CuSolver LU Decomposition Result ------------\n");
+    printf("> LU Decomposition Elapsed Time: %f (sec)", end - start);
+    printf("\n----------------------------------------------------------\n");
     return EXIT_SUCCESS;
 }
