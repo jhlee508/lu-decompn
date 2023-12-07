@@ -48,11 +48,16 @@
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
 #include <helper_cuda.h>
-#include <util.h>
+#include <sys/time.h>
 
-// configurable parameters
-// dimension of matrix
-#define N 512
+double get_time() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return (double)tv.tv_sec + tv.tv_usec * (double)1e-6;
+}
+
+// [configurable parameters]
+// batch size
 #define BATCH_SIZE 1
 
 // use double precision data type
@@ -64,7 +69,7 @@
 #else
   #define DATA_TYPE float
   #define MAX_ERROR 1e-6
-#endif /* DOUBLE_PRCISION */
+#endif /* DOUBLE_PRECISION */
 
 // use pivot vector while decomposing
 #define PIVOT /* comment this to disable pivot use */
@@ -72,8 +77,10 @@
 // verify the result
 #define VERIFY /* comment this to disable verification */
 
-// helper functions
+// print matrices
+#define PRINT /* comment this to diable print */
 
+// [helper functions]
 // wrapper around cublas<t>getrfBatched()
 cublasStatus_t cublasXgetrfBatched(cublasHandle_t handle, int n,
                                    DATA_TYPE* const A[], int lda, int* P,
@@ -99,7 +106,7 @@ void* xmalloc(size_t size) {
 }
 
 // initalize identity matrix
-void initIdentityMatrix(DATA_TYPE* mat) {
+void initIdentityMatrix(DATA_TYPE* mat, int N) {
   // clear the matrix
   memset(mat, 0, N * N * sizeof(DATA_TYPE));
 
@@ -110,12 +117,12 @@ void initIdentityMatrix(DATA_TYPE* mat) {
 }
 
 // initialize matrix with all elements as 0
-void initZeroMatrix(DATA_TYPE* mat) {
+void initZeroMatrix(DATA_TYPE* mat, int N) {
   memset(mat, 0, N * N * sizeof(DATA_TYPE));
 }
 
 // fill random value in column-major matrix
-void initRandomMatrix(DATA_TYPE* mat) {
+void initRandomMatrix(DATA_TYPE* mat, int N) {
   for (int i = 0; i < N; i++) {
     for (int j = 0; j < N; j++) {
       mat[(j * N) + i] =
@@ -130,19 +137,19 @@ void initRandomMatrix(DATA_TYPE* mat) {
 }
 
 // print column-major matrix
-void printMatrix(DATA_TYPE* mat) {
+void printMatrix(DATA_TYPE* mat, int N) {
   for (int i = 0; i < N; i++) {
     for (int j = 0; j < N; j++) {
-      printf("%20.16f ", mat[(j * N) + i]);
+      printf("%0.2f ", mat[(j * N) + i]);
     }
     printf("\n");
   }
-  printf("\n");
+  printf("====================\n");
 }
 
 // matrix mulitplication
-void matrixMultiply(DATA_TYPE* res, DATA_TYPE* mat1, DATA_TYPE* mat2) {
-  initZeroMatrix(res);
+void matrixMultiply(DATA_TYPE* res, DATA_TYPE* mat1, DATA_TYPE* mat2, int N) {
+  initZeroMatrix(res, N);
 
   for (int i = 0; i < N; i++) {
     for (int j = 0; j < N; j++) {
@@ -154,7 +161,7 @@ void matrixMultiply(DATA_TYPE* res, DATA_TYPE* mat1, DATA_TYPE* mat2) {
 }
 
 // check matrix equality
-bool checkRelativeError(DATA_TYPE* mat1, DATA_TYPE* mat2, DATA_TYPE maxError) {
+bool checkRelativeError(DATA_TYPE* mat1, DATA_TYPE* mat2, DATA_TYPE maxError, int N) {
   DATA_TYPE err = (DATA_TYPE)0.0;
   DATA_TYPE refNorm = (DATA_TYPE)0.0;
   DATA_TYPE relError = (DATA_TYPE)0.0;
@@ -181,9 +188,9 @@ bool checkRelativeError(DATA_TYPE* mat1, DATA_TYPE* mat2, DATA_TYPE maxError) {
 
 // decode lower and upper matrix from single matrix
 // returned by getrfBatched()
-void getLUdecoded(DATA_TYPE* mat, DATA_TYPE* L, DATA_TYPE* U) {
+void getLUdecoded(DATA_TYPE* mat, DATA_TYPE* L, DATA_TYPE* U, int N) {
   // init L as identity matrix
-  initIdentityMatrix(L);
+  initIdentityMatrix(L, N);
 
   // copy lower triangular values from mat to L (skip diagonal)
   for (int i = 0; i < N; i++) {
@@ -193,7 +200,7 @@ void getLUdecoded(DATA_TYPE* mat, DATA_TYPE* L, DATA_TYPE* U) {
   }
 
   // init U as all zero
-  initZeroMatrix(U);
+  initZeroMatrix(U, N);
 
   // copy upper triangular values from mat to U
   for (int i = 0; i < N; i++) {
@@ -204,7 +211,7 @@ void getLUdecoded(DATA_TYPE* mat, DATA_TYPE* L, DATA_TYPE* U) {
 }
 
 // generate permutation matrix from pivot vector
-void getPmatFromPivot(DATA_TYPE* Pmat, int* P) {
+void getPmatFromPivot(DATA_TYPE* Pmat, int* P, int N) {
   int pivot[N];
 
   // pivot vector in base-1
@@ -231,7 +238,7 @@ void getPmatFromPivot(DATA_TYPE* Pmat, int* P) {
   }
 
   // generate permutation matrix from pivot vector
-  initZeroMatrix(Pmat);
+  initZeroMatrix(Pmat, N);
   for (int i = 0; i < N; i++) {
     int j = pivot[i];
     Pmat[(j * N) + i] = (DATA_TYPE)1.0;
@@ -244,6 +251,12 @@ int main(int argc, char** argv) {
   cublasHandle_t handle;
 
   // host variables
+  if (argc < 2) {
+    printf("Usage %s [matrix dimension]\n", argv[0]);
+    printf(" e.g., %s 4\n", argv[0]);
+    exit(0);
+  }
+  int N = atoi(argv[1]);
   size_t matSize = N * N * sizeof(DATA_TYPE);
 
   DATA_TYPE* h_AarrayInput;
@@ -263,7 +276,7 @@ int main(int argc, char** argv) {
   int err_count = 0;
 
   // seed the rand() function with time
-  srand(12345);
+  srand(42);
 
   // find cuda device
   printf("> initializing..\n");
@@ -309,8 +322,14 @@ int main(int argc, char** argv) {
   // fill matrix with random data
   printf("> generating random matrices..\n");
   for (int i = 0; i < BATCH_SIZE; i++) {
-    initRandomMatrix(h_AarrayInput + (i * N * N));
+    initRandomMatrix(h_AarrayInput + (i * N * N), N);
   }
+  
+#ifdef PRINT
+  // print input matrix A
+  printf("> printing matrix A..\n");
+  printMatrix(h_AarrayInput, N);
+#endif /* PRINT */
 
   // copy data to device from host
   printf("> copying data from host memory to GPU memory..\n");
@@ -355,6 +374,12 @@ int main(int argc, char** argv) {
                              cudaMemcpyDeviceToHost));
 #endif /* PIVOT */
 
+#ifdef PRINT
+  // print output matrix LU
+  printf("> printing matrix LU..\n");
+  printMatrix(h_AarrayOutput, N);
+#endif /* PRINT */
+
 #ifdef VERIFY
   // verify the result
   printf("> verifying the result..\n");
@@ -367,7 +392,7 @@ int main(int argc, char** argv) {
       // DATA_TYPE U[N * N];
       DATA_TYPE* L = (DATA_TYPE*)malloc(N * N * sizeof(DATA_TYPE));
       DATA_TYPE* U = (DATA_TYPE*)malloc(N * N * sizeof(DATA_TYPE));
-      getLUdecoded(LU, L, U);
+      getLUdecoded(LU, L, U, N);
 
       // test P * A = L * U
       int* P = h_pivotArray + (i * N);
@@ -375,9 +400,9 @@ int main(int argc, char** argv) {
       // DATA_TYPE Pmat[N * N];
       DATA_TYPE* Pmat = (DATA_TYPE*)malloc(N * N * sizeof(DATA_TYPE));
 #ifdef PIVOT
-      getPmatFromPivot(Pmat, P);
+      getPmatFromPivot(Pmat, P, N);
 #else
-      initIdentityMatrix(Pmat);
+      initIdentityMatrix(Pmat, N);
 #endif /* PIVOT */
 
       // perform matrix multiplication
@@ -386,11 +411,11 @@ int main(int argc, char** argv) {
       DATA_TYPE* PxA = (DATA_TYPE*)malloc(N * N * sizeof(DATA_TYPE));
       //DATA_TYPE LxU[N * N];
       DATA_TYPE* LxU = (DATA_TYPE*)malloc(N * N * sizeof(DATA_TYPE));
-      matrixMultiply(PxA, Pmat, A);
-      matrixMultiply(LxU, L, U);
+      matrixMultiply(PxA, Pmat, A, N);
+      matrixMultiply(LxU, L, U, N);
 
       // check for equality of matrices
-      if (!checkRelativeError(PxA, LxU, (DATA_TYPE)MAX_ERROR)) {
+      if (!checkRelativeError(PxA, LxU, (DATA_TYPE)MAX_ERROR, N)) {
         printf("> ERROR: accuracy check failed for matrix number %05d..\n",
                i + 1);
         err_count++;
