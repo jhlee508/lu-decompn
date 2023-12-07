@@ -52,21 +52,25 @@
 
 // configurable parameters
 // dimension of matrix
-#define N 2048
+#define N 512
 #define BATCH_SIZE 1
 
 // use double precision data type
 #define DOUBLE_PRECISION /* comment this to use single precision */
+
 #ifdef DOUBLE_PRECISION
-#define DATA_TYPE double
-#define MAX_ERROR 1e-14 // default: 1e-15
+  #define DATA_TYPE double
+  #define MAX_ERROR 1e-14 // default: 1e-15
 #else
-#define DATA_TYPE float
-#define MAX_ERROR 1e-6
+  #define DATA_TYPE float
+  #define MAX_ERROR 1e-6
 #endif /* DOUBLE_PRCISION */
 
 // use pivot vector while decomposing
 #define PIVOT /* comment this to disable pivot use */
+
+// verify the result
+#define VERIFY /* comment this to disable verification */
 
 // helper functions
 
@@ -351,6 +355,7 @@ int main(int argc, char** argv) {
                              cudaMemcpyDeviceToHost));
 #endif /* PIVOT */
 
+#ifdef VERIFY
   // verify the result
   printf("> verifying the result..\n");
   for (int i = 0; i < BATCH_SIZE; i++) {
@@ -404,6 +409,7 @@ int main(int argc, char** argv) {
              *(h_AarrayInput + (i * N * N) + (-h_infoArray[i])));
     }
   }
+#endif /* VERIFY */
 
   // free device variables
   checkCudaErrors(cudaFree(d_ptr_array));
