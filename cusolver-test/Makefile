@@ -1,5 +1,5 @@
-TARGET=cusolver_lu
-OBJECTS=cusolver_lu.o
+TARGET=test_lu
+OBJECTS=test_lu.o
 
 CPPFLAGS=-std=c++14 -O3 -Wall -march=native -mavx2 -mfma -fopenmp -mno-avx512f -I/usr/local/cuda/include
 CUDA_CFLAGS:=$(foreach option, $(CPPFLAGS),-Xcompiler=$(option))
@@ -24,5 +24,5 @@ $(TARGET): $(OBJECTS)
 clean:
 	rm -rf $(TARGET) $(OBJECTS)
 
-run: cusolver_lu
-	./cusolver_lu
+run: test_lu
+	./test_lu
