@@ -20,7 +20,7 @@ $ make
 
 ## Usage (run)
 ```
-$  ./cusolver_getrf_example
+$  ./cusolver_lu
 ```
 
 ## Reference
