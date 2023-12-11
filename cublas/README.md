@@ -1,4 +1,4 @@
-# Cublas_LU
+# cuBLAS LU Decomposition
 
 This code is a usage of CuBLAS API for `dense LU decomposition` from [NVIDIA repository](https://github.com/NVIDIA/cuda-samples)
 
@@ -15,5 +15,5 @@ make TARGET_ARCH=x86_64 SMS="75" # dbg=1 HOST_COMPILER=g++
 ```
 
 ## Reference
-https://github.com/NVIDIA/cuda-samples
+- https://github.com/NVIDIA/cuda-samples
 - [cublasDgetrfBatched API](https://docs.nvidia.com/cuda/cublas/index.html?highlight=cublasDgetrfBatched#cublas-t-getrfbatched)

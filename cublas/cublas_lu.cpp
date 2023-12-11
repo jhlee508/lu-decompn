@@ -75,10 +75,10 @@ double get_time() {
 #define PIVOT /* comment this to disable pivot use */
 
 // verify the result
-#define VERIFY /* comment this to disable verification */
+// #define VERIFY /* comment this to disable verification */
 
 // print matrices
-#define PRINT /* comment this to diable print */
+// #define PRINT /* comment this to diable print */
 
 // [helper functions]
 // wrapper around cublas<t>getrfBatched()
@@ -249,6 +249,7 @@ int main(int argc, char** argv) {
   // cuBLAS variables
   cublasStatus_t status;
   cublasHandle_t handle;
+  cudaStream_t stream;
 
   // host variables
   if (argc < 2) {
@@ -319,8 +320,7 @@ int main(int argc, char** argv) {
   checkCudaErrors(
       cudaMalloc((void**)&d_ptr_array, BATCH_SIZE * sizeof(DATA_TYPE*)));
 
-  // fill matrix with random data
-  printf("> generating random matrices..\n");
+  // fill matrix A with random data
   for (int i = 0; i < BATCH_SIZE; i++) {
     initRandomMatrix(h_AarrayInput + (i * N * N), N);
   }
@@ -331,22 +331,24 @@ int main(int argc, char** argv) {
   printMatrix(h_AarrayInput, N);
 #endif /* PRINT */
 
+  checkCudaErrors(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+  cublasSetStream(handle, stream);
+
+  double start_comm = get_time();
   // copy data to device from host
-  printf("> copying data from host memory to GPU memory..\n");
-  checkCudaErrors(cudaMemcpy(d_Aarray, h_AarrayInput, BATCH_SIZE * matSize,
-                             cudaMemcpyHostToDevice));
+  checkCudaErrors(cudaMemcpyAsync(d_Aarray, h_AarrayInput, BATCH_SIZE * matSize,
+                             cudaMemcpyHostToDevice, stream));
 
   // create pointer array for matrices
   for (int i = 0; i < BATCH_SIZE; i++) h_ptr_array[i] = d_Aarray + (i * N * N);
 
   // copy pointer array to device memory
-  checkCudaErrors(cudaMemcpy(d_ptr_array, h_ptr_array,
+  checkCudaErrors(cudaMemcpyAsync(d_ptr_array, h_ptr_array,
                              BATCH_SIZE * sizeof(DATA_TYPE*),
-                             cudaMemcpyHostToDevice));
+                             cudaMemcpyHostToDevice, stream));
 
   // perform LU decomposition
-  printf("> performing LU decomposition..\n");
-  double start = get_time();
+  double start_comp = get_time();
 #ifdef PIVOT
   status = cublasXgetrfBatched(handle, N, d_ptr_array, N, d_pivotArray,
                                d_infoArray, BATCH_SIZE);
@@ -359,20 +361,22 @@ int main(int argc, char** argv) {
            _cudaGetErrorEnum(status));
     return (EXIT_FAILURE);
   }
-  double end = get_time();
-  printf("> finish LU decomposition..\n");
+  double end_comp = get_time();
 
   // copy data to host from device
-  printf("> copying data from GPU memory to host memory..\n");
-  checkCudaErrors(cudaMemcpy(h_AarrayOutput, d_Aarray, BATCH_SIZE * matSize,
-                             cudaMemcpyDeviceToHost));
-  checkCudaErrors(cudaMemcpy(h_infoArray, d_infoArray, BATCH_SIZE * sizeof(int),
-                             cudaMemcpyDeviceToHost));
+  checkCudaErrors(cudaMemcpyAsync(h_AarrayOutput, d_Aarray, BATCH_SIZE * matSize,
+                             cudaMemcpyDeviceToHost, stream));
+  checkCudaErrors(cudaMemcpyAsync(h_infoArray, d_infoArray, BATCH_SIZE * sizeof(int),
+                             cudaMemcpyDeviceToHost, stream));
+
 #ifdef PIVOT
-  checkCudaErrors(cudaMemcpy(h_pivotArray, d_pivotArray,
+  checkCudaErrors(cudaMemcpyAsync(h_pivotArray, d_pivotArray,
                              N * BATCH_SIZE * sizeof(int),
-                             cudaMemcpyDeviceToHost));
+                             cudaMemcpyDeviceToHost, stream));
 #endif /* PIVOT */
+
+  checkCudaErrors(cudaStreamSynchronize(stream));
+  double end_comm = get_time();
 
 #ifdef PRINT
   // print output matrix LU
@@ -448,6 +452,9 @@ int main(int argc, char** argv) {
   if (h_AarrayOutput) free(h_AarrayOutput);
   if (h_AarrayInput) free(h_AarrayInput);
 
+  // destroy cuda stream
+  checkCudaErrors(cudaStreamDestroy(stream));
+
   // destroy cuBLAS handle
   status = cublasDestroy(handle);
   if (status != CUBLAS_STATUS_SUCCESS) {
@@ -462,7 +469,8 @@ int main(int argc, char** argv) {
   }
   printf("\n------------- Cublas LU Decomposition Result -------------\n");
   printf("> Validation SUCCESS, with precision: %g\n", MAX_ERROR);
-  printf("> LU Decomposition Elapsed Time: %f (sec)", end - start);
+  printf("> LU Decomposition Elapsed Time: %f (sec)\n", end_comp - start_comp);
+  printf("> LU Decomposition + Communication Time: %f (sec)", end_comm - start_comm);
   printf("\n----------------------------------------------------------\n");
   return (EXIT_SUCCESS);
 }
