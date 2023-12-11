@@ -1,8 +1,8 @@
-# CuSolver LU Factorization
+# cuSOLVER LU Decomposition
 
 This code is a usage of cuSOLVER API for `dense LU decomposition` from [NVIDIA repository](https://github.com/NVIDIA/CUDALibrarySamples)
 
-_PA = LU_
+_P * A = L * U_
 
 ## Build (make)
 

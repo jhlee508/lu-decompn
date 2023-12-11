@@ -57,6 +57,9 @@
 #include "cusolver_utils.h"
 #include <sys/time.h>
 
+using namespace std;
+
+
 double get_time() {
   struct timeval tv;
   gettimeofday(&tv, NULL);
@@ -64,7 +67,7 @@ double get_time() {
 }
 
 /* print matrices */
-#define PRINT /* comment this to diable print */
+// #define PRINT /* comment this to diable print */
 
 int main(int argc, char *argv[]) {
     srand(42);
@@ -99,7 +102,7 @@ int main(int argc, char *argv[]) {
      *       | 0.5714  0.5   1 |      | 0  0       -0.5   |
      */
 
-    std::vector<double> A(matSize * matSize);
+    vector<double> A(matSize * matSize);
     for (int i = 0; i < matSize; ++i) {
         for (int j = 0; j < matSize; ++j) {
             double element = (double)1.0 + ((double)rand() / (double)RAND_MAX);
@@ -110,9 +113,9 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < matSize; i++) {
         A[(i * matSize) + i] += (double)matSize;
     }
-    std::vector<double> X(matSize, 0);
-    std::vector<double> LU(lda * matSize, 0);
-    std::vector<int> Ipiv(matSize, 0);
+    vector<double> X(matSize, 0);
+    vector<double> LU(lda * matSize, 0);
+    vector<int> Ipiv(matSize, 0);
     int info = 0;
 
     double *d_A = nullptr; /* device copy of A */
@@ -142,27 +145,28 @@ int main(int argc, char *argv[]) {
     CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
     CUSOLVER_CHECK(cusolverDnSetStream(cusolverH, stream));
 
-    /* step 2: copy A to device */
+    /* step 2: allocate and copy A to device */
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_A), sizeof(double) * A.size()));
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_Ipiv), sizeof(int) * Ipiv.size()));
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_info), sizeof(int)));
 
+    double start_comm = get_time();
     CUDA_CHECK(
         cudaMemcpyAsync(d_A, A.data(), sizeof(double) * A.size(), cudaMemcpyHostToDevice, stream));
 
+    double start_comp = get_time();
     /* step 3: query working space of getrf */
     CUSOLVER_CHECK(cusolverDnDgetrf_bufferSize(cusolverH, matSize, matSize, d_A, lda, &lwork));
 
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_work), sizeof(double) * lwork));
 
     /* step 4: LU factorization */
-    double start = get_time();
     if (pivot_on) {
         CUSOLVER_CHECK(cusolverDnDgetrf(cusolverH, matSize, matSize, d_A, lda, d_work, d_Ipiv, d_info));
     } else {
         CUSOLVER_CHECK(cusolverDnDgetrf(cusolverH, matSize, matSize, d_A, lda, d_work, NULL, d_info));
     }
-    double end = get_time();
+    double end_comp = get_time();
 
     if (pivot_on) {
         CUDA_CHECK(cudaMemcpyAsync(Ipiv.data(), d_Ipiv, sizeof(int) * Ipiv.size(),
@@ -173,6 +177,7 @@ int main(int argc, char *argv[]) {
     CUDA_CHECK(cudaMemcpyAsync(&info, d_info, sizeof(int), cudaMemcpyDeviceToHost, stream));
 
     CUDA_CHECK(cudaStreamSynchronize(stream));
+    double end_comm = get_time();
 
     if (0 > info) {
         printf("%d-th parameter is wrong \n", -info);
@@ -206,7 +211,8 @@ int main(int argc, char *argv[]) {
     CUDA_CHECK(cudaDeviceReset());
 
     printf("\n------------ CuSolver LU Decomposition Result ------------\n");
-    printf("> LU Decomposition Elapsed Time: %f (sec)", end - start);
+    printf("> LU Decomposition Elapsed Time: %f (sec)\n", end_comp - start_comp);
+    printf("> LU Decomposition + Communication Time: %f (sec)", end_comm - start_comm);
     printf("\n----------------------------------------------------------\n");
     return EXIT_SUCCESS;
 }
