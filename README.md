@@ -1,6 +1,6 @@
 # Dense LU Decomposition
 
-This contains Dense LU Decomposition codes using `getrf` LAPACK routine from **cuSOLVER**, **cuBLAS**, and **oneMKL** APIs. 
+This contains complete dense LU decomposition example codes using `getrf` LAPACK routine from **cuSOLVER**, **cuBLAS**, and **oneMKL** APIs. 
 
 ## Contents
 - [cuSOLVER](cusolver)
